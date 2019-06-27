@@ -14,40 +14,41 @@ class CILogViewer {
 
     private $CI;
 
-    private static $levelsIcon = [
+    private $levelsIcon = [
         'INFO' => 'glyphicon glyphicon-info-sign',
         'ERROR' => 'glyphicon glyphicon-warning-sign',
         'DEBUG' => 'glyphicon glyphicon-exclamation-sign',
     ];
 
-    private static $levelClasses = [
+    private $levelClasses = [
         'INFO' => 'info',
         'ERROR' => 'danger',
         'DEBUG' => 'warning',
     ];
 
-
-    const LOG_LINE_START_PATTERN = "/((INFO)|(ERROR)|(DEBUG)|(ALL))[\s-\d:]+(-->)/";
-    const LOG_DATE_PATTERN = "/(\d{4,}-[\d-:]{2,})\s([\d:]{2,})/";
-    const LOG_LEVEL_PATTERN = "/^((ERROR)|(INFO)|(DEBUG))/";
-    const FILE_PATH_PATTERN = APPPATH . "/logs/log-*.php";
-    const LOG_FOLDER_PREFIX = APPPATH . "/logs";
-
-    const LOG_VIEW_FILE_FOLDER = APPPATH . "/views/cilogviewer";
-    const LOG_VIEW_FILE_NAME = "logs.php";
-    const LOG_VIEW_FILE_PATH = self::LOG_VIEW_FILE_FOLDER . "/" . self::LOG_VIEW_FILE_NAME;
-    const CI_LOG_VIEW_FILE_PATH = "cilogviewer/logs";
-
-    const MAX_LOG_SIZE = 52428800; //50MB
-    const MAX_STRING_LENGTH = 300; //300 chars
-
-
-    public function __construct() {
+    public function __construct($pattern=NULL) {
+        if(isset($pattern)&&is_string($pattern)) {
+            $this->LOG_GLOB_PATTERN = $pattern;
+        } else {
+            $this->LOG_GLOB_PATTERN = 'log-*';
+        }
         $this->init();
     }
 
 
     private function init() {
+
+        $this->LOG_LINE_START_PATTERN = "/((INFO)|(ERROR)|(DEBUG)|(ALL))[\s-\d:]+(-->)/";
+        $this->LOG_DATE_PATTERN = "/(\d{4,}-[\d-:]{2,})\s([\d:]{2,})([.][\d:]{2,})?/";
+        $this->LOG_LEVEL_PATTERN = "/^((ERROR)|(INFO)|(DEBUG))/";
+
+        $this->LOG_VIEW_FILE_FOLDER = APPPATH . "views/cilogviewer"; //Changes done here
+        $this->LOG_VIEW_FILE_NAME = "logs.php";
+        $this->LOG_VIEW_FILE_PATH = $this->LOG_VIEW_FILE_FOLDER . "/" . $this->LOG_VIEW_FILE_NAME;
+        $this->CI_LOG_VIEW_FILE_PATH = "cilogviewer/logs";
+
+        $this->MAX_LOG_SIZE = 52428800; //50MB
+        $this->MAX_STRING_LENGTH = 300; //300 chars
 
         if(!function_exists("get_instance")) {
             throw new \Exception("This library works in a Code Igniter Project/Environment");
@@ -56,13 +57,17 @@ class CILogViewer {
         //initiate Code Igniter Instance
         $this->CI = &get_instance();
 
+        $this->LOG_FOLDER_PREFIX = $this->CI->config->item('log_path');
+        $this->LOG_FILE_EXTENSION= $this->CI->config->item('log_file_extension');
+
         //create the view file so that CI can find it
-        if(!file_exists(self::LOG_VIEW_FILE_PATH)) {
+        if(!file_exists($this->LOG_VIEW_FILE_PATH)) {
 
-            if(!is_dir(self::LOG_VIEW_FILE_FOLDER))
-                mkdir(self::LOG_VIEW_FILE_FOLDER);
+            if(!is_dir($this->LOG_VIEW_FILE_FOLDER)) {
+                mkdir($this->LOG_VIEW_FILE_FOLDER);
+            }
 
-            file_put_contents(self::LOG_VIEW_FILE_PATH, file_get_contents(self::LOG_VIEW_FILE_NAME, FILE_USE_INCLUDE_PATH));
+            file_put_contents($this->LOG_VIEW_FILE_PATH, file_get_contents($this->LOG_VIEW_FILE_NAME, FILE_USE_INCLUDE_PATH));
         }
     }
 
@@ -92,23 +97,23 @@ class CILogViewer {
         $files = $this->getFiles();
 
         if(!is_null($fileName)) {
-            $currentFile = self::LOG_FOLDER_PREFIX . "/". base64_decode($fileName);
+            $currentFile = $this->LOG_FOLDER_PREFIX ."/". base64_decode($fileName);
         }
         else if(is_null($fileName) && !empty($files)) {
-            $currentFile = self::LOG_FOLDER_PREFIX. "/" . $files[0];
+            $currentFile = $this->LOG_FOLDER_PREFIX ."/". $files[0];
         }
         else {
             $data['logs'] = [];
             $data['files'] = [];
             $data['currentFile'] = "";
-            return $this->CI->load->view(self::CI_LOG_VIEW_FILE_PATH, $data, true);
+            return $this->CI->load->view($this->CI_LOG_VIEW_FILE_PATH, $data, true);
         }
 
         $logs = $this->processLogs($this->getLogs($currentFile));
         $data['logs'] = $logs;
         $data['files'] =  $files;
         $data['currentFile'] = basename($currentFile);
-        return $this->CI->load->view(self::CI_LOG_VIEW_FILE_PATH, $data, true);
+        return $this->CI->load->view($this->CI_LOG_VIEW_FILE_PATH, $data, true);
     }
 
 
@@ -138,13 +143,13 @@ class CILogViewer {
                 $data = [
                     "level" => $level,
                     "date" => $this->getLogDate($logLineStart),
-                    "icon" => self::$levelsIcon[$level],
-                    "class" => self::$levelClasses[$level],
+                    "icon" => $this->levelsIcon[$level],
+                    "class" => $this->levelClasses[$level],
                 ];
 
-                if(strlen($log) > self::MAX_STRING_LENGTH) {
-                    $data['content'] = substr($log, 0, self::MAX_STRING_LENGTH);
-                    $data["extra"] = substr($log, (self::MAX_STRING_LENGTH + 1));
+                if(strlen($log) > $this->MAX_STRING_LENGTH) {
+                    $data['content'] = substr($log, 0, $this->MAX_STRING_LENGTH);
+                    $data["extra"] = substr($log, ($this->MAX_STRING_LENGTH + 1));
                 } else {
                     $data["content"] = $log;
                 }
@@ -166,8 +171,8 @@ class CILogViewer {
 //               array_push($superLog, [
 //                   "level" => "INFO",
 //                   "date" => "",
-//                   "icon" => self::$levelsIcon["INFO"],
-//                   "class" => self::$levelClasses["INFO"],
+//                   "icon" => $this->levelsIcon["INFO"],
+//                   "class" => $this->levelClasses["INFO"],
 //                   "content" => $log
 //               ]);
             }
@@ -185,17 +190,17 @@ class CILogViewer {
      * @return log level e.g. ERROR, DEBUG, INFO
      * */
     private function getLogLevel($logLineStart) {
-        preg_match(self::LOG_LEVEL_PATTERN, $logLineStart, $matches);
+        preg_match($this->LOG_LEVEL_PATTERN, $logLineStart, $matches);
         return $matches[0];
     }
 
     private function getLogDate($logLineStart) {
-        preg_match(self::LOG_DATE_PATTERN, $logLineStart, $matches);
+        preg_match($this->LOG_DATE_PATTERN, $logLineStart, $matches);
         return $matches[0];
     }
 
     private function getLogLineStart($logLine) {
-        preg_match(self::LOG_LINE_START_PATTERN, $logLine, $matches);
+        preg_match($this->LOG_LINE_START_PATTERN, $logLine, $matches);
         if(!empty($matches)) {
             return $matches[0];
         }
@@ -210,7 +215,7 @@ class CILogViewer {
      * */
     private function getLogs($fileName) {
         $size = filesize($fileName);
-        if(!$size || $size > self::MAX_LOG_SIZE)
+        if(!$size || $size > $this->MAX_LOG_SIZE)
             return null;
         return file($fileName, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     }
@@ -227,7 +232,13 @@ class CILogViewer {
     private function getFiles($basename = true)
     {
 
-        $files = glob(self::FILE_PATH_PATTERN);
+        $this->LOG_PATH_PATTERN = sprintf('%s/%s.%s'
+            , $this->LOG_FOLDER_PREFIX
+            , $this->LOG_GLOB_PATTERN
+            , $this->LOG_FILE_EXTENSION
+        );
+
+        $files = glob($this->LOG_PATH_PATTERN);
 
         $files = array_reverse($files);
         $files = array_filter($files, 'is_file');
@@ -246,10 +257,10 @@ class CILogViewer {
     private function deleteFiles($fileName) {
 
         if($fileName == "all") {
-            array_map("unlink", glob(self::FILE_PATH_PATTERN));
+            array_map("unlink", glob($this->LOG_PATH_PATTERN));
         }
         else {
-            unlink(self::LOG_FOLDER_PREFIX . "/" . $fileName);
+            unlink($this->LOG_FOLDER_PREFIX . "/" . $fileName);
         }
         return;
     }
@@ -259,7 +270,7 @@ class CILogViewer {
      * @param $fileName
      * */
     private function downloadFile($fileName) {
-        $file = self::LOG_FOLDER_PREFIX . "/" . $fileName;
+        $file = $this->LOG_FOLDER_PREFIX . "/" . $fileName;
         if (file_exists($file)) {
             header('Content-Description: File Transfer');
             header('Content-Type: application/octet-stream');
@@ -275,4 +286,5 @@ class CILogViewer {
 
 
 
-}
+} // class CILogViewer
+
